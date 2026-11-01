@@ -1,29 +1,14 @@
-const express = require('express');
-const fetch = (...args) => import('node-fetch').then(({ default: f }) => f(...args));
-
-const app = express();
-
-app.use((req, res, next) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Accept');
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
-  next();
-});
-
-app.use(express.json());
-
 app.post('/api/search', async (req, res) => {
   try {
     const { query, latitude, longitude } = req.body;
     let url = '';
 
     if (latitude && longitude) {
+      // Busca num raio de 50km (GPS)
       url = `https://api.geoapify.com/v2/places?categories=entertainment,adult,nightclub&filter=circle:${longitude},${latitude},50000&limit=10&apiKey=${process.env.GEOAPIFY_API_KEY}`;
     } else if (query) {
-      const termo = encodeURIComponent(`${query} casa de swing clube liberal`);
+      // Busca exatamente o que o usuário digitou (sem forçar palavras)
+      const termo = encodeURIComponent(query);
       url = `https://api.geoapify.com/v2/places?text=${termo}&filter=rect:-74.0,-33.0,-34.0,5.0&limit=10&apiKey=${process.env.GEOAPIFY_API_KEY}`;
     } else {
       return res.status(400).json({ error: 'Digite um local para pesquisar.' });
@@ -61,9 +46,3 @@ app.post('/api/search', async (req, res) => {
     res.status(500).json({ error: 'Erro ao pesquisar estabelecimentos.' });
   }
 });
-
-app.post('/api/create-page', async (req, res) => {
-    res.json({ pageUrl: "https://aperdicao.blogspot.com" });
-});
-
-module.exports = app;
