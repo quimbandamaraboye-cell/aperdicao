@@ -1,10 +1,18 @@
-require('dotenv').config();
 const express = require('express');
-const cors = require('cors');
 const fetch = (...args) => import('node-fetch').then(({ default: f }) => f(...args));
 
 const app = express();
-app.use(cors());
+
+app.use((req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Accept');
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  next();
+});
+
 app.use(express.json());
 
 app.post('/api/search', async (req, res) => {
@@ -13,11 +21,8 @@ app.post('/api/search', async (req, res) => {
     let url = '';
 
     if (latitude && longitude) {
-      // Busca por proximidade (50km de raio baseado no GPS)
       url = `https://api.geoapify.com/v2/places?categories=entertainment,adult,nightclub&filter=circle:${longitude},${latitude},50000&limit=10&apiKey=${process.env.GEOAPIFY_API_KEY}`;
     } else if (query) {
-      // Busca por texto (ex: "São Paulo casa de swing")
-      // O encodeURIComponent trata os acentos e espaços
       const termo = encodeURIComponent(`${query} casa de swing clube liberal`);
       url = `https://api.geoapify.com/v2/places?text=${termo}&filter=rect:-74.0,-33.0,-34.0,5.0&limit=10&apiKey=${process.env.GEOAPIFY_API_KEY}`;
     } else {
@@ -31,12 +36,11 @@ app.post('/api/search', async (req, res) => {
        return res.json({ places: [] });
     }
 
-    // Formatando os dados
     const places = data.features.map(f => {
       const props = f.properties;
       return {
         placeId: props.place_id || String(props.datasource?.raw?.osm_id || Math.random()),
-        name: props.name || 'Estabelecimento',
+        name: props.name || 'Estabelecimento sem nome',
         address: props.formatted || 'Endereço não informado',
         phone: props.contact?.phone || 'Telefone não informado',
         rating: null,
@@ -59,8 +63,7 @@ app.post('/api/search', async (req, res) => {
 });
 
 app.post('/api/create-page', async (req, res) => {
-    res.json({ pageUrl: "https://aperdicao.blogspot.com", existing: false });
+    res.json({ pageUrl: "https://aperdicao.blogspot.com" });
 });
 
-// (Não coloque app.listen aqui! O Vercel não aceita isso)
 module.exports = app;
