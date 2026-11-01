@@ -62,7 +62,5 @@ app.post('/api/create-page', async (req, res) => {
     res.json({ pageUrl: "https://aperdicao.blogspot.com", existing: false });
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log('Backend A PERDIÇÃO rodando');
-});
+// (Não coloque app.listen aqui! O Vercel não aceita isso)
+module.exports = app;
