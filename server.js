@@ -10,39 +10,38 @@ app.use(express.json());
 app.post('/api/search', async (req, res) => {
   try {
     const { query, latitude, longitude } = req.body;
-    
-    // O Geoapify usa um termo de busca e um local
-    let textQuery = query || "casa de swing clube liberal";
-    let location = "Brazil";
+    let url = '';
 
     if (latitude && longitude) {
-      location = `${latitude},${longitude}`;
+      // Busca por proximidade (50km de raio baseado no GPS)
+      url = `https://api.geoapify.com/v2/places?categories=entertainment,adult,nightclub&filter=circle:${longitude},${latitude},50000&limit=10&apiKey=${process.env.GEOAPIFY_API_KEY}`;
     } else if (query) {
-      location = query;
-      textQuery = "casa de swing OR clube liberal OR swing club";
+      // Busca por texto (ex: "São Paulo casa de swing")
+      // O encodeURIComponent trata os acentos e espaços
+      const termo = encodeURIComponent(`${query} casa de swing clube liberal`);
+      url = `https://api.geoapify.com/v2/places?text=${termo}&filter=rect:-74.0,-33.0,-34.0,5.0&limit=10&apiKey=${process.env.GEOAPIFY_API_KEY}`;
+    } else {
+      return res.status(400).json({ error: 'Digite um local para pesquisar.' });
     }
-
-    // Buscando no Geoapify
-    const url = `https://api.geoapify.com/v2/places?categories=entertainment,adult,nightclub&filter=rect:-74.0,-33.0,-34.0,5.0&bias=proximity:${location}&text=${textQuery}&limit=10&apiKey=${process.env.GEOAPIFY_API_KEY}`;
 
     const resp = await fetch(url);
     const data = await resp.json();
 
-    if (!data.features) {
+    if (!data.features || data.features.length === 0) {
        return res.json({ places: [] });
     }
 
-    // Formatando os dados para o formato que o seu Blogger já espera
+    // Formatando os dados
     const places = data.features.map(f => {
       const props = f.properties;
       return {
-        placeId: props.place_id || props.datasource.raw.osm_id,
-        name: props.name || 'Estabelecimento sem nome',
+        placeId: props.place_id || String(props.datasource?.raw?.osm_id || Math.random()),
+        name: props.name || 'Estabelecimento',
         address: props.formatted || 'Endereço não informado',
         phone: props.contact?.phone || 'Telefone não informado',
-        rating: null, // Geoapify não tem nota do Google
+        rating: null,
         userRatingsTotal: 0,
-        photoUrl: null, // Geoapify não fornece fotos
+        photoUrl: null,
         website: props.website || null,
         googleMapsUri: `https://www.google.com/maps/search/?api=1&query=${props.lat},${props.lon}`,
         lat: props.lat,
@@ -59,7 +58,6 @@ app.post('/api/search', async (req, res) => {
   }
 });
 
-// Rota para gerar página individual (apenas simulação por enquanto)
 app.post('/api/create-page', async (req, res) => {
     res.json({ pageUrl: "https://aperdicao.blogspot.com", existing: false });
 });
