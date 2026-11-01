@@ -15,17 +15,43 @@ app.use((req, res, next) => {
 
 app.use(express.json());
 
+// Função para buscar o place_id da cidade usando a API de Geocodificação
+async function obterPlaceIdCidade(query) {
+  // Limpa a string (ex: "São Paulo, SP" -> "São Paulo")
+  const cidadeLimpa = query.split(',')[0].trim();
+  const url = `https://api.geoapify.com/v1/geocode/search?text=${encodeURIComponent(cidadeLimpa)}&type=city&format=json&limit=1&apiKey=${process.env.GEOAPIFY_API_KEY}`;
+  
+  const resp = await fetch(url);
+  const data = await resp.json();
+  
+  if (data.results && data.results.length > 0) {
+    return data.results[0].place_id;
+  }
+  return null;
+}
+
 app.post('/api/search', async (req, res) => {
   try {
     const { query, latitude, longitude } = req.body;
     let url = '';
 
+    // Categorias que abrangem casas de swing, boates e entretenimento adulto
+    const categorias = 'amenity.swingerclub,entertainment.nightclub,entertainment,adult';
+
     if (latitude && longitude) {
-      url = `https://api.geoapify.com/v2/places?categories=entertainment,adult,nightclub&filter=circle:${longitude},${latitude},50000&limit=10&apiKey=${process.env.GEOAPIFY_API_KEY}`;
+      // Busca por GPS (raio de 50km)
+      url = `https://api.geoapify.com/v2/places?categories=${categorias}&filter=circle:${longitude},${latitude},50000&limit=10&apiKey=${process.env.GEOAPIFY_API_KEY}`;
     } else if (query) {
-      // Agora a busca é exatamente o que o usuário digitar
-      const termo = encodeURIComponent(query);
-      url = `https://api.geoapify.com/v2/places?text=${termo}&filter=rect:-74.0,-33.0,-34.0,5.0&limit=10&apiKey=${process.env.GEOAPIFY_API_KEY}`;
+      // 1. Tenta achar o ID da cidade
+      const placeId = await obterPlaceIdCidade(query);
+      
+      if (placeId) {
+        // 2. Se achou a cidade, busca os estabelecimentos DENTRO dela
+        url = `https://api.geoapify.com/v2/places?categories=${categorias}&filter=place:${placeId}&limit=10&apiKey=${process.env.GEOAPIFY_API_KEY}`;
+      } else {
+        // Se não achar a cidade exata, faz uma busca por proximidade genérica
+        url = `https://api.geoapify.com/v2/places?categories=${categorias}&bias=proximity:${encodeURIComponent(query)}&limit=10&apiKey=${process.env.GEOAPIFY_API_KEY}`;
+      }
     } else {
       return res.status(400).json({ error: 'Digite um local para pesquisar.' });
     }
